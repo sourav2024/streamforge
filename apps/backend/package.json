@@ -1,0 +1,34 @@
+{
+  "name": "@streamforge/backend",
+  "version": "0.0.0",
+  "private": true,
+  "description": "StreamForge backend — Node.js + TypeScript modular monolith (Fastify).",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "dev:worker": "tsx watch src/worker.ts",
+    "build": "tsc -b",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "migrate": "node-pg-migrate up -m migrations --envPath .env",
+    "migrate:down": "node-pg-migrate down -m migrations --envPath .env",
+    "test": "tsx --env-file=.env --test \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1083.0",
+    "@fastify/multipart": "^10.1.0",
+    "@streamforge/contracts": "*",
+    "bullmq": "^5.80.10",
+    "fastify": "^5.2.0",
+    "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.20.0",
+    "dotenv": "^17.4.2",
+    "node-pg-migrate": "^8.0.4",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

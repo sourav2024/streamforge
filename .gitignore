@@ -1,0 +1,31 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+*.tsbuildinfo
+
+# turbo
+.turbo/
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# local media / infra data (bind mounts, uploads, transcode output)
+infra/data/
+*.mp4
+!docs/**/*.mp4

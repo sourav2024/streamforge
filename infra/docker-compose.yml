@@ -1,0 +1,85 @@
+# StreamForge — local development infrastructure.
+#
+# Brings up the three stateful backing services on a shared Docker network:
+#   - postgres : catalog/job metadata      (Phase 1 #1)
+#   - redis    : BullMQ job queue backend  (Phase 1 #3)
+#   - minio    : S3-compatible object store for raw uploads + HLS output (Phase 1 #1/#3)
+#
+# The backend itself runs on the HOST during dev (npm run dev) and connects to these via
+# the mapped localhost ports below. See docs/concepts/04-local-infra-docker-compose.md.
+#
+# Usage:  npm run infra:up | infra:down | infra:logs
+# Success criterion (Phase 0): `docker compose ps` shows all three as (healthy).
+#
+# NOTE: credentials here are DEV-ONLY and intentionally in plaintext. Real secrets never
+# live in the repo (see concept doc §4). Values can be overridden via infra/.env.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: streamforge-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-streamforge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-streamforge}
+      POSTGRES_DB: ${POSTGRES_DB:-streamforge}
+    ports:
+      # host:container — the host-run backend reaches Postgres at localhost:5433.
+      # Host port is 5433 (not 5432) to avoid clashing with a native/Homebrew Postgres
+      # that commonly occupies localhost:5432. Container still listens on 5432 internally.
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # pg_isready reports readiness (accepting connections), not merely "process started".
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-streamforge} -d ${POSTGRES_DB:-streamforge}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: streamforge-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    # Enable AOF persistence so queued jobs survive a restart during development.
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  minio:
+    image: minio/minio:latest
+    container_name: streamforge-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-streamforge}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-streamforge}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"      # S3 API — what our code talks to
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"  # web console — browse buckets at http://localhost:9001
+    volumes:
+      - miniodata:/data
+    command: ["server", "/data", "--console-address", ":9001"]
+    healthcheck:
+      # The minio image bundles `mc`, and the server registers a built-in "local" alias for
+      # itself, so `mc ready local` reports S3-API readiness with no manual alias/curl.
+      # Verified: goes (healthy) ~15-20s after boot.
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+# Named, Docker-managed volumes so data survives `infra:down`/`up`.
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
