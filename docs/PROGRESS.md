@@ -21,7 +21,7 @@
   worker consumes the producer test's real Redis jobs and the suite hangs (learned 2026-08-08).
 - **Git:** LIVE as of 2026-08-08 — repo pushed to GitHub as `sourav2024/streamforge`
   ("chore: initial commit" = everything through Session 7 + partial #4). Repo-local identity:
-  `sourav2024 <souravkashyap7869@gmail.com>`. Session 8's work is uncommitted pending review.
+  `sourav2024 <souravkashyap7869@gmail.com>`. Sessions 8–9 committed & pushed (`dec5c64`).
 
 ## The rhythm (every module)
 
