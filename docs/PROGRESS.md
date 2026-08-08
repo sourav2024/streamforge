@@ -5,19 +5,23 @@
 
 ## Current status
 
-- **Phase:** Phase 1 #3 — Transcoding Pipeline — **COMPLETE & VERIFIED** ✅ (E2E: upload →
-  worker → 720p fMP4 HLS in MinIO → status `ready`; failure drill → `failed`).
-- **Module:** Phase 1 #4 — ABR ladder + master playlist. Not started.
-- **Next action:** Optional teach-back/retro on Phase 1 #3 (quiz was skipped for #2 — the
-  keyframe-hinge gap is now partially closed by building it, but IDR alignment across
-  renditions becomes REAL in #4). Then brainstorm Phase 1 #4: multiple renditions with
-  identical GOP flags, capped bitrates per rung, master playlist.
+- **Phase:** Phase 1 — VOD Core — **COMPLETE** ✅✅ (#5 Playback Service done & verified:
+  ffprobe consumed the entire proxied HLS tree through the backend; all 403/404/409 drills
+  pass). Phase 1 #4 done earlier the same day (see Session 8).
+- **Module:** Phase 2 #6 — RN app skeleton (bare React Native, Android). Not started.
+- **Next action:** Teach-backs are OWED (standing ritual; Sessions 8–9 ran autonomous):
+  (a) Phase 1 #4 — ladder design, CODECS/BANDWIDTH anatomy, master-last rationale;
+  (b) Phase 1 #5 — path-token-vs-query rationale, HMAC/timingSafeEqual, backpressure,
+  immutable-vs-playlist caching; (c) the Session-5 media-fundamentals remainder (Q4–Q7).
+  Then brainstorm Phase 2 #6.
 - **Blocked on:** Nothing. Infra is up and healthy.
 - **Dev note:** host Postgres port is **5433** (Homebrew pg holds 5432). Docker often stops
   between sessions — `npm run infra:up` + wait for (healthy) on resume.
-- **Git:** NOT initialized yet — user chose to defer version control. Do not commit until asked.
-  (Note: the design doc's Session-1 entry says git was init'd; it was not. A stray nested
-  `apps/backend/.git` was created by mistake and removed.)
+- **Dev note 2:** do NOT run the test suite while the dev worker is running — the live
+  worker consumes the producer test's real Redis jobs and the suite hangs (learned 2026-08-08).
+- **Git:** LIVE as of 2026-08-08 — repo pushed to GitHub as `sourav2024/streamforge`
+  ("chore: initial commit" = everything through Session 7 + partial #4). Repo-local identity:
+  `sourav2024 <souravkashyap7869@gmail.com>`. Session 8's work is uncommitted pending review.
 
 ## The rhythm (every module)
 
@@ -278,3 +282,83 @@ Corrections to the record:
   to the filename (`part.fields` timing in @fastify/multipart?) — worked in Session 4's E2E.
   Investigate during hardening; does not affect the pipeline.
 - Git still deferred.
+
+### Session 8 — 2026-08-08 — Phase 1 #4 (ABR ladder + master playlist): SLICE COMPLETE ✅
+
+- **Context:** work resumed on a NEW machine path: repo pushed to GitHub
+  (`sourav2024/streamforge`, "chore: initial commit" carried Sessions 1–7 + #4 Tasks 1–2),
+  fresh clone, `npm install`, `.env` recreated from example, Docker relaunched — named
+  volumes survived, no migrations needed. Somewhere between sessions, plan Tasks 1–2 had
+  already landed (concept doc 10, `ladder.ts` + tests, ffprobe `audioCodec`) but left the
+  tree broken: `upload.service.test.ts` probe fakes lacked `audioCodec` → typecheck failed.
+  Fixed the fakes first; baseline 33 tests green.
+- **Task 3 DONE (verified, TDD red→green):** `master.ts` — `buildMasterPlaylist(entries)`
+  builds `#EXTM3U`/`#EXT-X-VERSION:7` + one `#EXT-X-STREAM-INF` per rung from MEASURED
+  outputs; builder owns highest-first ordering; `BANDWIDTH = round((maxrateK+128)·1000·1.1)`;
+  CODECS drops `mp4a.40.2` when the rung is silent (truthful master). Exact-text tests
+  (with/without audio).
+- **Task 4 DONE (verified):** `buildHlsArgs`/`runFfmpegHls` take a `Rung` — scale
+  `min(rung.height,ih)`, per-rung caps, explicit `-level:v` so CODECS is exact. GOP trio
+  stays hardcoded ON PURPOSE (parameterizing it would hand callers the IDR-alignment gun).
+  New integration test = **alignment evidence:** 480p + 360p from one 1080p/10s source →
+  identical segment counts AND identical `#EXTINF` sequences; probed heights 480/360.
+- **Task 5 DONE (verified):** `transcode.job.ts` — deps gain `probe`; flow: download →
+  probe LOCAL file → `selectRungs` (null height → NORMAL Error: retries, then `failed`) →
+  per rung encode → upload under `<id>/<label>/` → ffprobe the rung playlist (measured
+  RESOLUTION, not intended) → master uploaded **LAST** (the "ladder complete" artifact) →
+  `ready`. Worker injects `probeVideo`. 6 job unit tests incl. master-last ordering,
+  master body content, small-source single-rung, probe-null-vs-unknown-video error split.
+- **Task 6 E2E DONE (real evidence):**
+  - 1080p/10s upload → `ready` in seconds; `streamforge-hls/<id>/`: **21 objects** = 4 rung
+    dirs (playlist + init.mp4 + 3 `.m4s` each) + `master.m3u8` (correct content-type).
+  - Master exactly per spec: 4 STREAM-INFs highest-first, BANDWIDTH 6740800/3440800/
+    1680800/1020800, RESOLUTION 1920x1080/1280x720/854x480/640x360, CODECS
+    `avc1.4d4028|4d401f|4d401f|4d401e` + `mp4a.40.2`.
+  - **Cross-rung alignment in production output:** all 4 rung playlists show
+    `#EXTINF: 4.0, 4.0, 2.0` — identical. ffprobe reads the downloaded master fine
+    (4 h264 video streams at the 4 resolutions + aac audio).
+  - **Never-upscale:** 640x360/4s upload → exactly 4 objects: ONE `360p/` rung + master
+    with a single STREAM-INF.
+- **Final checkpoint:** build PASS; **38 tests, 0 fail** (was 33 at session start, 25 in S7).
+- **Gotcha logged:** running the suite while the dev worker is up HANGS it — the live
+  worker eats the producer test's real Redis jobs (dedupe-count assertions race a consumer).
+  Kill dev processes before `npm test`. Recorded as Dev note 2 in Current status.
+- **Teach-back:** NOT run (autonomous session) — owed for #4, plus the Session-5
+  media-fundamentals quiz remainder. Queued as the next session's first action.
+
+### Session 9 — 2026-08-08 — Phase 1 #5 (Playback Service): SLICE COMPLETE ✅ → PHASE 1 DONE
+
+- **Brainstormed + locked 2 decisions (user chose):** serving model = **proxy through
+  backend** (relative URIs untouched; becomes the CDN origin in Phase 4; presigned-rewrite
+  documented as the alternative); Phase 1 #4 work stays **uncommitted** for now.
+- Docs first (Teaching Contract): concept doc
+  `11-playback-serving-and-signed-tokens.md` (HTTP delivery of HLS, proxy-vs-presign,
+  backpressure, immutable-vs-playlist caching, WHY the token must live in the URL path —
+  relative resolution drops query strings — and HMAC anatomy incl. timingSafeEqual);
+  spec `2026-08-08-playback-service-design.md`; plan `2026-08-08-playback-service.md`.
+- **Config:** `PLAYBACK_TOKEN_SECRET` (required, fail-fast) + `PLAYBACK_TOKEN_TTL_SECONDS`
+  (default 21600) — **add to `.env` when resuming on a fresh clone.**
+- **Platform:** `storage.getObjectStream(key)` → `{ body, contentType, contentLength } | null`
+  (null on NoSuchKey — missing object is a serving outcome, not an error); body handed to
+  Fastify UNCONSUMED so backpressure runs client ← Node ← MinIO. Integration test vs MinIO.
+- **Playback module (all TDD red→green):**
+  - `playback.tokens.ts` — `<expMs>.<base64url(HMAC-SHA256(secret, videoId:exp))>`;
+    videoId inside the MAC but not the token (cross-video replay fails); injectable clock;
+    timingSafeEqual. 5 unit tests (round-trip, replay, tamper, expiry, malformed).
+  - `playback.routes.ts` — `GET /playback/videos/:id` issues `{ playbackUrl, expiresAt }`
+    (404 unknown/non-UUID, **409 not-ready** — ready ⇒ all artifacts exist, the #4
+    master-last invariant paying off); serve routes stream master + `:rung/:file` with
+    strict shape whitelists (`^\d{3,4}p$`, exactly index.m3u8|init.mp4|seg_\d{5}.m4s),
+    403 before any storage read, Cache-Control immutable-for-segments / 60s-for-playlists.
+    6 route tests with real Fastify + real tokens, fake catalog/storage.
+  - Contracts gain `PlaybackResponse`. `app.ts` wires hlsStorage (API process reads the
+    HLS bucket for the first time) + tokens + registerPlayback.
+- **E2E (real evidence):** issued URL for the Session-8 1080p video → master through the
+  proxy with correct content-type/cache headers → **ffprobe consumed the PROXIED master
+  URL end-to-end** (the same GET cascade a player makes: master → rung playlists → init +
+  segments; all 4 rungs + aac visible). Drills: tampered token → 403, `evil.txt` → 404,
+  bad rung shape → 404, fresh upload with worker off → issue → **409 "video is uploaded,
+  not ready"**.
+- **Final checkpoint:** typecheck clean; **50 tests, 0 fail** (was 38 after #4).
+- **Teach-back:** owed (see Current status). Phase 1 (VOD core) is now COMPLETE:
+  upload → probe → queue → ABR ladder → master → signed playback URL → HLS over HTTP.

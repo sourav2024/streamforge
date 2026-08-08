@@ -12,6 +12,7 @@ import { Worker, UnrecoverableError } from "bullmq";
 import { loadConfig } from "./platform/config.js";
 import { createPool } from "./platform/db.js";
 import { createStorage } from "./platform/storage.js";
+import { probeVideo } from "./platform/ffprobe.js";
 import { redisConnectionOptions } from "./platform/redis.js";
 import { createCatalogRepository, createCatalogService } from "./modules/catalog/index.js";
 import {
@@ -31,7 +32,10 @@ async function main(): Promise<void> {
 
   const worker = new Worker<TranscodeJobData>(
     TRANSCODE_QUEUE,
-    (job) => processTranscodeJob(job.data, { catalog, rawStorage, hlsStorage, runHls: runFfmpegHls }),
+    (job) =>
+      processTranscodeJob(job.data, {
+        catalog, rawStorage, hlsStorage, runHls: runFfmpegHls, probe: probeVideo,
+      }),
     {
       connection: redisConnectionOptions(config),
       // FFmpeg already saturates all cores for a single encode; parallel jobs would only

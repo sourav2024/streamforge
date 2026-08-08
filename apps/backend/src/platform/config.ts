@@ -30,6 +30,13 @@ export interface S3Config {
   forcePathStyle: boolean;
 }
 
+export interface PlaybackConfig {
+  /** HMAC secret for playback tokens (doc 11 §6). Required — fail-fast, like S3 creds. */
+  tokenSecret: string;
+  /** Playback URL lifetime. Default 6h: long enough to watch, short enough to bound a leak. */
+  tokenTtlSeconds: number;
+}
+
 export interface Config {
   host: string;
   port: number;
@@ -38,6 +45,7 @@ export interface Config {
   redisUrl: string;
   uploadMaxBytes: number;
   s3: S3Config;
+  playback: PlaybackConfig;
 }
 
 /**
@@ -69,6 +77,10 @@ export function loadConfig(): Config {
       bucketRaw: process.env.S3_BUCKET_RAW ?? "streamforge-raw",
       bucketHls: process.env.S3_BUCKET_HLS ?? "streamforge-hls",
       forcePathStyle: (process.env.S3_FORCE_PATH_STYLE ?? "true") === "true",
+    },
+    playback: {
+      tokenSecret: required("PLAYBACK_TOKEN_SECRET"),
+      tokenTtlSeconds: readInt("PLAYBACK_TOKEN_TTL_SECONDS", 21_600),
     },
   };
 }

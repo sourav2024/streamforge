@@ -16,7 +16,7 @@ function fakeStorage(overrides: Partial<Storage> = {}): Storage & { put: string[
   } as Storage & { put: string[]; deleted: string[] };
 }
 
-const okProbe = async () => ({ durationSeconds: 1, width: 320, height: 240, videoCodec: "h264" });
+const okProbe = async () => ({ durationSeconds: 1, width: 320, height: 240, videoCodec: "h264", audioCodec: "aac" });
 
 function fakeTranscode(): { enqueue(videoId: string): Promise<void>; enqueued: string[] } {
   const enqueued: string[] = [];
@@ -64,7 +64,7 @@ test("probe failure is non-fatal: records nulls, still succeeds", async () => {
     createVideo: async (i) => { recorded = i; return { ...i, status: "uploaded", createdAt: "t" } as Video; },
     listVideos: async () => [], getVideo: async () => null, updateStatus: async () => null,
   };
-  const nullProbe = async () => ({ durationSeconds: null, width: null, height: null, videoCodec: null });
+  const nullProbe = async () => ({ durationSeconds: null, width: null, height: null, videoCodec: null, audioCodec: null });
   const svc = createUploadService({ storage, catalog, probe: nullProbe, transcode: fakeTranscode() });
   await svc.ingest({ tempPath: "/tmp/x.mp4", title: "T", contentType: "video/mp4", sizeBytes: 10 });
   assert.equal(recorded!.width, null);

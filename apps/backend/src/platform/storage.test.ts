@@ -26,3 +26,27 @@ test("storage round-trip: ensureBucket, put from file, get to file, delete", asy
   await rm(tmp, { force: true });
   await rm(dest, { force: true });
 });
+
+test("getObjectStream: streams an object with metadata; missing key → null", async () => {
+  const config = loadConfig();
+  const storage = createStorage(config, config.s3.bucketRaw);
+  await storage.ensureBucket();
+
+  const tmp = join(tmpdir(), `sf-storage-stream-${process.pid}.txt`);
+  await writeFile(tmp, "stream me");
+  const key = `__test__/${process.pid}/stream.txt`;
+  await storage.putObjectFromFile(key, tmp, "text/plain");
+
+  const obj = await storage.getObjectStream(key);
+  assert.ok(obj, "existing key returns a stream");
+  const chunks: Buffer[] = [];
+  for await (const c of obj.body) chunks.push(c as Buffer);
+  assert.equal(Buffer.concat(chunks).toString("utf8"), "stream me");
+  assert.equal(obj.contentType, "text/plain");
+  assert.equal(obj.contentLength, 9);
+
+  assert.equal(await storage.getObjectStream(`__test__/${process.pid}/nope.txt`), null);
+
+  await storage.deleteObject(key);
+  await rm(tmp, { force: true });
+});

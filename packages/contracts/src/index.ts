@@ -56,3 +56,15 @@ export type CreateVideoResponse = Video;
 export interface VideoListResponse {
   videos: Video[];
 }
+
+/**
+ * Response of `GET /playback/videos/:id` — the entry point a player hands to its HLS
+ * engine. The token is embedded in the URL PATH so relative playlist URIs carry it
+ * (Phase 1 #5 spec §3; concept doc 11 §5).
+ */
+export interface PlaybackResponse {
+  /** Relative URL of the master playlist, e.g. `/playback/<id>/<token>/master.m3u8`. */
+  playbackUrl: string;
+  /** ISO-8601 instant after which the URL stops working. */
+  expiresAt: string;
+}

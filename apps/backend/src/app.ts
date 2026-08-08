@@ -25,6 +25,7 @@ import {
 } from "./modules/catalog/index.js";
 import { createUploadService, registerUpload } from "./modules/upload/index.js";
 import { createTranscodeProducer } from "./modules/transcode/index.js";
+import { createPlaybackTokens, registerPlayback } from "./modules/playback/index.js";
 import { redisConnectionOptions } from "./platform/redis.js";
 
 // Read the backend version from package.json at runtime (single source of truth).
@@ -85,6 +86,14 @@ export async function buildApp(config: Config): Promise<FastifyInstance> {
     transcode: transcodeProducer,
   });
   registerUpload(app, { service: uploadService });
+
+  // Playback: the API process now reads the HLS bucket too (the worker writes it).
+  const hlsStorage = createStorage(config, config.s3.bucketHls);
+  const tokens = createPlaybackTokens({
+    secret: config.playback.tokenSecret,
+    ttlSeconds: config.playback.tokenTtlSeconds,
+  });
+  registerPlayback(app, { catalog: catalogService, hlsStorage, tokens });
 
   // Ensure the raw bucket exists before we accept any upload.
   await storage.ensureBucket();

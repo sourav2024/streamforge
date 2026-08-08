@@ -18,10 +18,19 @@ import {
 } from "@aws-sdk/client-s3";
 import type { Config } from "./config.js";
 
+export interface ObjectStream {
+  body: Readable;
+  /** S3 may omit these; undefined means "we don't know", callers fall back. */
+  contentType: string | undefined;
+  contentLength: number | undefined;
+}
+
 export interface Storage {
   ensureBucket(): Promise<void>;
   putObjectFromFile(key: string, filePath: string, contentType: string): Promise<void>;
   getObjectToFile(key: string, destPath: string): Promise<void>;
+  /** Open the object as a stream for proxying (doc 11 §3). Missing key → null, not throw. */
+  getObjectStream(key: string): Promise<ObjectStream | null>;
   deleteObject(key: string): Promise<void>;
 }
 
@@ -69,6 +78,23 @@ export function createStorage(config: Config, bucket: string): Storage {
       const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
       if (!res.Body) throw new Error(`empty body for s3://${bucket}/${key}`);
       await pipeline(res.Body as Readable, createWriteStream(destPath));
+    },
+    async getObjectStream(key) {
+      // The body is handed to the caller UNCONSUMED — Fastify pipes it to the client, so
+      // backpressure runs end-to-end (client ← Node ← MinIO) and memory stays flat.
+      try {
+        const res = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+        if (!res.Body) return null;
+        return {
+          body: res.Body as Readable,
+          contentType: res.ContentType,
+          contentLength: res.ContentLength,
+        };
+      } catch (err) {
+        // Missing object is an expected outcome for a serving path (→ HTTP 404), not an error.
+        if ((err as { name?: string }).name === "NoSuchKey") return null;
+        throw err;
+      }
     },
     async deleteObject(key) {
       await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
