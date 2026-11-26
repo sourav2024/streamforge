@@ -76,3 +76,7 @@ Stop infra with `npm run infra:down`.
 
 Phase 1 — VOD Core — complete (upload → transcode → ABR ladder → signed playback URLs).
 See [`docs/PROGRESS.md`](docs/PROGRESS.md) for the current module and next action.
+
+## Design notes
+
+Architecture diagram, request flow, design trade-offs and known limitations: [docs/DESIGN-NOTES.md](docs/DESIGN-NOTES.md).
